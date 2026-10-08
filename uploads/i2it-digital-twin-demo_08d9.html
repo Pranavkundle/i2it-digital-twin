@@ -1,0 +1,897 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>3D Digital Twin — I²IT Campus</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Work+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg-deep:#0B1D22;
+    --bg-panel:#122A30;
+    --bg-panel-2:#0F2229;
+    --accent:#E8A33D;
+    --accent-soft:#F2C879;
+    --text-primary:#EDEFE9;
+    --text-muted:#9FB3AE;
+    --line: rgba(237,239,233,0.14);
+    --line-strong: rgba(237,239,233,0.28);
+    --ok:#6FBF8B;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg-deep);
+    color:var(--text-primary);
+    font-family:'Work Sans', sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  h1,h2,h3,.display{font-family:'Space Grotesk', sans-serif;font-weight:600;letter-spacing:-0.01em;margin:0;}
+  .wrap{max-width:1180px;margin:0 auto;padding:0 24px;}
+  @media (max-width:640px){.wrap{padding:0 16px;}}
+
+  /* ---------- header ---------- */
+  header{padding:26px 0 18px;border-bottom:1px solid var(--line);}
+  .header-row{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;flex-wrap:wrap;}
+  .eyebrow{font-size:0.78rem;color:var(--accent-soft);font-weight:600;}
+  header h1{font-size:clamp(1.4rem,2.6vw,1.9rem);margin-top:6px;}
+  header p.sub{color:var(--text-muted);font-size:0.92rem;margin:8px 0 0;max-width:560px;line-height:1.5;}
+  .scope-pills{display:flex;gap:8px;flex-wrap:wrap;}
+  .pill{font-size:0.78rem;border:1px solid var(--line-strong);padding:6px 12px;color:var(--text-muted);white-space:nowrap;}
+
+  /* ---------- toolbar ---------- */
+  #toolbar{
+    display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+    padding:14px 0;border-bottom:1px solid var(--line);
+  }
+  #breadcrumb{font-size:0.9rem;color:var(--text-muted);display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+  #breadcrumb button{background:none;border:none;color:var(--text-muted);font-family:inherit;font-size:0.9rem;cursor:pointer;padding:2px 0;}
+  #breadcrumb button:hover{color:var(--accent-soft);}
+  #breadcrumb .current{color:var(--text-primary);font-weight:500;}
+  #breadcrumb .sep{color:var(--line-strong);}
+  .toolbar-spacer{flex:1;}
+  .view-toggle{display:flex;border:1px solid var(--line-strong);}
+  .view-toggle button{
+    background:none;border:none;color:var(--text-muted);
+    font-family:'Work Sans';font-size:0.82rem;font-weight:500;
+    padding:8px 14px;cursor:pointer;
+  }
+  .view-toggle button.active{background:var(--accent);color:#1a1206;}
+  .view-toggle button:disabled{opacity:0.4;cursor:not-allowed;}
+  #search-form{display:flex;gap:0;}
+  #search-input{
+    background:var(--bg-panel-2);border:1px solid var(--line-strong);border-right:none;
+    color:var(--text-primary);font-family:'Work Sans';font-size:0.88rem;
+    padding:9px 12px;width:220px;
+  }
+  #search-input:focus{outline:none;border-color:var(--accent);}
+  #search-form button{
+    background:var(--accent);border:none;color:#1a1206;font-weight:600;
+    padding:9px 14px;cursor:pointer;font-family:'Work Sans';font-size:0.85rem;
+  }
+  #search-form button:hover{background:var(--accent-soft);}
+  @media (max-width:900px){#search-input{width:150px;}}
+
+  /* ---------- viewer ---------- */
+  #viewer-wrap{
+    position:relative;
+    height:62vh;
+    min-height:440px;
+    margin-top:0;
+    background:var(--bg-deep);
+    overflow:hidden;
+  }
+  #scene-canvas{
+    position:absolute;inset:0;width:100%;height:100%;display:block;
+    touch-action:none;opacity:0;transition:opacity .9s ease;
+  }
+  #scene-canvas.ready{opacity:1;}
+  .drag-hint{
+    position:absolute;top:16px;left:16px;font-size:0.75rem;color:var(--text-muted);
+    border:1px solid var(--line);padding:6px 11px;background:rgba(11,29,34,0.55);
+    pointer-events:none;z-index:4;
+  }
+  #floorplan-view{
+    position:absolute;inset:0;padding:26px;overflow:auto;
+    background:var(--bg-panel-2);display:none;
+  }
+  #floorplan-view.active{display:block;}
+  .fp-header{font-size:0.86rem;color:var(--text-muted);margin-bottom:16px;}
+  .fp-grid{display:flex;flex-wrap:wrap;gap:12px;max-width:820px;}
+  .fp-room{
+    background:var(--bg-panel);border:1px solid var(--line-strong);
+    color:var(--text-primary);font-family:'Work Sans';font-size:0.88rem;
+    padding:18px 16px;min-width:150px;cursor:pointer;text-align:left;
+    display:flex;flex-direction:column;gap:6px;
+  }
+  .fp-room:hover{border-color:var(--accent-soft);}
+  .fp-room.active{border-color:var(--accent);background:rgba(232,163,61,0.12);}
+  .fp-room .fp-id{font-size:0.74rem;color:var(--text-muted);}
+
+  /* ---------- hotspots ---------- */
+  .hotspot{
+    position:absolute;transform:translate(-50%,-100%);
+    padding:5px 11px;border-radius:2px;
+    background:var(--bg-panel);border:1px solid var(--line-strong);
+    color:var(--text-primary);font-size:0.8rem;font-family:'Work Sans';font-weight:500;
+    cursor:pointer;z-index:5;white-space:nowrap;
+    transition:border-color .15s ease, background .15s ease;
+  }
+  .hotspot::before{
+    content:'';position:absolute;bottom:-8px;left:50%;transform:translateX(-50%);
+    width:8px;height:8px;border-radius:50%;background:var(--accent);
+  }
+  .hotspot:hover, .hotspot:focus-visible{border-color:var(--accent);background:rgba(232,163,61,0.14);outline:none;}
+  .hotspot.building-marker{font-family:'Space Grotesk';font-weight:600;}
+
+  /* ---------- floor panel ---------- */
+  #floor-panel{
+    position:fixed;right:0;top:0;bottom:0;width:min(360px,88vw);
+    background:var(--bg-panel);border-left:1px solid var(--line-strong);
+    z-index:60;padding:24px 22px 30px;transform:translateX(100%);
+    transition:transform .3s cubic-bezier(.2,.8,.2,1);overflow-y:auto;
+  }
+  #floor-panel.open{transform:translateX(0);}
+  #floor-panel .tag{font-size:0.75rem;color:var(--accent-soft);font-weight:600;}
+  #floor-panel h3{font-size:1.25rem;margin-top:8px;line-height:1.25;}
+  #floor-panel .meta{color:var(--text-muted);font-size:0.85rem;margin-top:4px;}
+  #floor-panel .room-list{margin-top:20px;border-top:1px solid var(--line);}
+  #floor-panel .room-row{
+    display:flex;justify-content:space-between;align-items:center;gap:10px;
+    padding:12px 0;border-bottom:1px solid var(--line);
+    background:none;border-left:none;border-right:none;border-top:none;width:100%;
+    color:var(--text-primary);font-family:'Work Sans';font-size:0.9rem;cursor:pointer;text-align:left;
+  }
+  #floor-panel .room-row:hover{color:var(--accent-soft);}
+  #floor-panel .room-row.active{color:var(--accent);font-weight:600;}
+  #floor-panel .room-row .rid{font-size:0.74rem;color:var(--text-muted);font-weight:400;}
+  #panel-close{position:absolute;top:18px;right:18px;background:none;border:none;color:var(--text-muted);font-size:1.3rem;cursor:pointer;}
+  #panel-close:hover{color:var(--text-primary);}
+
+  /* ---------- toast ---------- */
+  #toast{
+    position:fixed;top:20px;left:50%;transform:translate(-50%,-14px);
+    background:var(--bg-panel);border:1px solid var(--line-strong);
+    padding:11px 18px;font-size:0.88rem;color:var(--text-primary);
+    z-index:80;opacity:0;pointer-events:none;transition:opacity .25s ease, transform .25s ease;
+  }
+  #toast.show{opacity:1;transform:translate(-50%,0);}
+
+  /* ---------- AI widget ---------- */
+  #ai-toggle{
+    position:fixed;right:24px;bottom:24px;z-index:70;
+    background:var(--accent);border:none;color:#1a1206;font-weight:600;
+    padding:13px 20px;cursor:pointer;font-family:'Work Sans';font-size:0.9rem;
+    box-shadow:0 6px 20px rgba(0,0,0,0.35);
+  }
+  #ai-toggle:hover{background:var(--accent-soft);}
+  #ai-panel{
+    position:fixed;right:24px;bottom:80px;width:min(340px,86vw);
+    max-height:440px;background:var(--bg-panel);border:1px solid var(--line-strong);
+    z-index:70;display:none;flex-direction:column;
+  }
+  #ai-panel.open{display:flex;}
+  #ai-panel-header{padding:14px 16px;border-bottom:1px solid var(--line);font-size:0.85rem;color:var(--text-muted);display:flex;justify-content:space-between;align-items:center;}
+  #ai-panel-header strong{color:var(--text-primary);font-family:'Space Grotesk';}
+  #ai-close{background:none;border:none;color:var(--text-muted);font-size:1.2rem;cursor:pointer;}
+  #ai-messages{flex:1;overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;gap:12px;font-size:0.88rem;}
+  .ai-msg{line-height:1.5;}
+  .ai-msg.user{color:var(--accent-soft);}
+  .ai-msg.bot{color:var(--text-primary);}
+  .ai-msg .who{display:block;font-size:0.72rem;color:var(--text-muted);margin-bottom:2px;}
+  #ai-form{display:flex;border-top:1px solid var(--line);}
+  #ai-input{
+    flex:1;background:var(--bg-panel-2);border:none;color:var(--text-primary);
+    font-family:'Work Sans';font-size:0.85rem;padding:11px 12px;
+  }
+  #ai-input:focus{outline:none;}
+  #ai-form button{background:var(--accent);border:none;color:#1a1206;font-weight:600;padding:0 16px;cursor:pointer;}
+  #ai-form button:hover{background:var(--accent-soft);}
+
+  /* ---------- modules legend ---------- */
+  #modules{padding:56px 0;border-top:1px solid var(--line);}
+  #modules h2{font-size:1.3rem;}
+  .modules-grid{display:grid;grid-template-columns:repeat(3,1fr);border-top:1px solid var(--line-strong);margin-top:28px;}
+  .module{padding:20px 22px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);}
+  .module:nth-child(3n){border-right:none;}
+  .module .m-tag{font-family:'Space Grotesk';font-size:0.8rem;color:var(--accent-soft);display:flex;justify-content:space-between;}
+  .module .m-status{font-size:0.72rem;color:var(--text-muted);}
+  .module .m-status.live{color:var(--ok);}
+  .module h4{font-size:0.98rem;margin-top:8px;}
+  .module p{color:var(--text-muted);font-size:0.85rem;line-height:1.55;margin-top:8px;}
+  @media (max-width:800px){.modules-grid{grid-template-columns:1fr;}.module{border-right:none;}}
+
+  footer{padding:0 0 56px;}
+  footer .note{color:rgba(159,179,174,0.72);font-size:0.82rem;line-height:1.65;border-top:1px solid var(--line);padding-top:22px;max-width:760px;}
+  ::selection{background:var(--accent);color:#1a1206;}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap header-row">
+    <div>
+      <div class="eyebrow">Project Review — II · Prototype</div>
+      <h1>3D Digital Twin of the I²IT Campus</h1>
+      <p class="sub">An interactive Three.js viewer over a Building → Floor → Room database, with keyword search and a simulated AI query module — the front-end half of the system described in the proposal.</p>
+    </div>
+    <div class="scope-pills">
+      <span class="pill">Academic Building</span>
+      <span class="pill">PPCRC</span>
+      <span class="pill">Library</span>
+    </div>
+  </div>
+</header>
+
+<div id="toolbar" class="wrap">
+  <div id="breadcrumb"></div>
+  <div class="toolbar-spacer"></div>
+  <div class="view-toggle" role="group" aria-label="View mode">
+    <button id="btn-view-3d" class="active">3D view</button>
+    <button id="btn-view-floorplan" disabled>Floor plan</button>
+  </div>
+  <form id="search-form">
+    <input id="search-input" type="text" placeholder="Search a room or building…" aria-label="Search campus">
+    <button type="submit">Search</button>
+  </form>
+</div>
+
+<div id="viewer-wrap">
+  <canvas id="scene-canvas"></canvas>
+  <div class="drag-hint">Drag to orbit · scroll to zoom · click a building, then a floor</div>
+  <div id="hotspot-layer"></div>
+  <div id="floorplan-view">
+    <div class="fp-header" id="fp-header">Select a floor to see its room layout.</div>
+    <div class="fp-grid" id="fp-grid"></div>
+  </div>
+</div>
+
+<div id="floor-panel">
+  <button id="panel-close" aria-label="Close">&times;</button>
+  <div class="tag" id="panel-tag">Building</div>
+  <h3 id="panel-title">—</h3>
+  <div class="meta" id="panel-meta"></div>
+  <div class="room-list" id="panel-room-list"></div>
+</div>
+
+<div id="toast"></div>
+
+<button id="ai-toggle">Ask about the campus</button>
+<div id="ai-panel">
+  <div id="ai-panel-header">
+    <span><strong>Campus Q&amp;A</strong> — demo module</span>
+    <button id="ai-close" aria-label="Close">&times;</button>
+  </div>
+  <div id="ai-messages"></div>
+  <form id="ai-form">
+    <input id="ai-input" type="text" placeholder="Where is the TPO office?" aria-label="Ask the campus assistant">
+    <button type="submit">Ask</button>
+  </form>
+</div>
+
+<section id="modules">
+  <div class="wrap">
+    <h2>What this prototype demonstrates</h2>
+    <div class="modules-grid">
+      <div class="module">
+        <div class="m-tag"><span>M1</span><span class="m-status live">In this demo</span></div>
+        <h4>3D Campus Viewer</h4>
+        <p>Three buildings rendered as stacked floor slabs in Three.js, standing in for the Blender-exported models in the full system.</p>
+      </div>
+      <div class="module">
+        <div class="m-tag"><span>M2</span><span class="m-status live">In this demo</span></div>
+        <h4>Building &amp; Floor Navigation</h4>
+        <p>Click a building to see its floors separate out, then click a floor to open its room list.</p>
+      </div>
+      <div class="module">
+        <div class="m-tag"><span>M3</span><span class="m-status live">In this demo</span></div>
+        <h4>Search Module</h4>
+        <p>Keyword search across room names and IDs, jumping the viewer straight to the matching floor and room.</p>
+      </div>
+      <div class="module">
+        <div class="m-tag"><span>M4</span><span class="m-status live">Simulated</span></div>
+        <h4>AI Query Module</h4>
+        <p>Pattern-matching over the local dataset answers "where is…" and "how many floors…" questions — a stand-in for the NLU layer in the proposal.</p>
+      </div>
+      <div class="module">
+        <div class="m-tag"><span>M5</span><span class="m-status">Not in this demo</span></div>
+        <h4>Database &amp; Admin Module</h4>
+        <p>Room data here is a hard-coded JavaScript object. The real system replaces this with the MongoDB schema and REST API from the architecture diagram.</p>
+      </div>
+      <div class="module">
+        <div class="m-tag"><span>M6</span><span class="m-status live">In this demo</span></div>
+        <h4>Floor Plan Viewer</h4>
+        <p>The "Floor plan" toggle swaps the 3D view for a lightweight 2D room grid, as the fallback module describes.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <p class="note">This is a front-end prototype built for Project Review – II. Building geometry, floor counts and room names below are representative sample data, not a real floor survey — Phase 1 of the project timeline (requirement &amp; data collection) is what would replace them with actual room lists for the Academic Building, PPCRC and Library. The room ID scheme (Building–Floor–Room, e.g. B001-F02-R01) matches the one in the proposal. Live indoor positioning is explicitly out of scope for v1, per the proposal's scope boundary, and is not attempted here.</p>
+  </div>
+</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function(){
+  "use strict";
+
+  // ============================================================
+  // DATA — Building -> Floor -> Room (stands in for the MongoDB
+  // schema in the proposal; module M5 would replace this object
+  // with a REST API call).
+  // ============================================================
+  var DATA = { buildings: [
+    { id:'B001', name:'Academic Building', x:-14, z:-2, w:10, d:8,
+      wallColor:'#C9BBA0', roofColor:'#8B7F63',
+      floors: [
+        { id:'F00', label:'Ground Floor', rooms:[
+          {id:'R01', name:'Reception'}, {id:'R02', name:'Admission Office'},
+          {id:'R03', name:'Mechanical Workshop'}, {id:'R04', name:'Seminar Hall 1'}
+        ]},
+        { id:'F01', label:'1st Floor', rooms:[
+          {id:'R01', name:'CSE Lab 1'}, {id:'R02', name:'CSE Lab 2'},
+          {id:'R03', name:'IT Lab 1'}, {id:'R04', name:'Faculty Cabin – CSE'},
+          {id:'R05', name:'Classroom A101'}, {id:'R06', name:'Classroom A102'}
+        ]},
+        { id:'F02', label:'2nd Floor', rooms:[
+          {id:'R01', name:'TPO Office'}, {id:'R02', name:'E&TC Lab 1'},
+          {id:'R03', name:'E&TC Lab 2'}, {id:'R04', name:'HOD Cabin – E&TC'},
+          {id:'R05', name:'Classroom A201'}
+        ]},
+        { id:'F03', label:'3rd Floor', rooms:[
+          {id:'R01', name:'Project Lab'}, {id:'R02', name:'Research Cell'},
+          {id:'R03', name:'Conference Room'}, {id:'R04', name:'Classroom A301'}
+        ]}
+      ]
+    },
+    { id:'B002', name:'PPCRC', x:3, z:7, w:7, d:6,
+      wallColor:'#2F5D62', roofColor:'#1E4448',
+      floors: [
+        { id:'F00', label:'Ground Floor', rooms:[
+          {id:'R01', name:'Innovation Lab'}, {id:'R02', name:'Robotics Lab'}, {id:'R03', name:'Incubation Cell'}
+        ]},
+        { id:'F01', label:'1st Floor', rooms:[
+          {id:'R01', name:'R&D Office'}, {id:'R02', name:'Meeting Room'}
+        ]}
+      ]
+    },
+    { id:'B003', name:'Library', x:16, z:5, w:7, d:7,
+      wallColor:'#B5654A', roofColor:'#7A4636',
+      floors: [
+        { id:'F00', label:'Ground Floor', rooms:[
+          {id:'R01', name:'Circulation Desk'}, {id:'R02', name:'Reading Hall'}, {id:'R03', name:'Reference Section'}
+        ]},
+        { id:'F01', label:'1st Floor', rooms:[
+          {id:'R01', name:'Digital Library'}, {id:'R02', name:'Periodicals Section'},
+          {id:'R03', name:'Discussion Room 1'}, {id:'R04', name:'Discussion Room 2'}
+        ]}
+      ]
+    }
+  ]};
+
+  function fullId(b,f,r){ return b.id+'-'+f.id+'-'+r.id; }
+  function getBuilding(bid){ return DATA.buildings.find(function(b){return b.id===bid;}); }
+  function getFloor(b,fid){ return b.floors.find(function(f){return f.id===fid;}); }
+
+  function findMatch(queryRaw){
+    var q = (queryRaw||'').toLowerCase().trim();
+    if(!q) return null;
+    for(var i=0;i<DATA.buildings.length;i++){
+      var b = DATA.buildings[i];
+      for(var j=0;j<b.floors.length;j++){
+        var f = b.floors[j];
+        for(var k=0;k<f.rooms.length;k++){
+          var r = f.rooms[k];
+          var fid = fullId(b,f,r).toLowerCase();
+          if(fid===q || r.name.toLowerCase()===q || r.name.toLowerCase().indexOf(q)!==-1 || fid.indexOf(q)!==-1){
+            return {type:'room', buildingId:b.id, buildingName:b.name, floorId:f.id, floorLabel:f.label,
+              roomId:r.id, roomName:r.name, fullId:fullId(b,f,r)};
+          }
+        }
+      }
+    }
+    for(var m=0;m<DATA.buildings.length;m++){
+      var bb = DATA.buildings[m];
+      if(bb.name.toLowerCase().indexOf(q)!==-1 || bb.id.toLowerCase()===q){
+        return {type:'building', buildingId:bb.id, buildingName:bb.name, floorCount:bb.floors.length};
+      }
+    }
+    return null;
+  }
+  function findBuildingByName(nameQ){
+    var q = (nameQ||'').toLowerCase().trim();
+    return DATA.buildings.find(function(b){ return b.name.toLowerCase().indexOf(q)!==-1 || q.indexOf(b.name.toLowerCase())!==-1; });
+  }
+
+  // ============================================================
+  // STATE
+  // ============================================================
+  var state = { mode:'campus', buildingId:null, floorId:null, selectedRoomId:null, viewMode:'3d' };
+
+  // ============================================================
+  // THREE.JS SETUP
+  // ============================================================
+  var canvas = document.getElementById('scene-canvas');
+  var viewerWrap = document.getElementById('viewer-wrap');
+  var hotspotLayer = document.getElementById('hotspot-layer');
+  var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  var renderer = new THREE.WebGLRenderer({canvas:canvas, antialias:true});
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, 2));
+
+  var scene = new THREE.Scene();
+  (function(){
+    var c = document.createElement('canvas'); c.width=8; c.height=256;
+    var ctx = c.getContext('2d');
+    var grad = ctx.createLinearGradient(0,0,0,256);
+    grad.addColorStop(0,'#0A171C'); grad.addColorStop(0.55,'#173038'); grad.addColorStop(1,'#3E4A3F');
+    ctx.fillStyle=grad; ctx.fillRect(0,0,8,256);
+    scene.background = new THREE.CanvasTexture(c);
+  })();
+  scene.fog = new THREE.Fog(0x16303a, 40, 110);
+
+  var camera = new THREE.PerspectiveCamera(42, 1, 0.1, 300);
+
+  var hemi = new THREE.HemisphereLight(0x9fc4c9, 0x2a2418, 0.8);
+  scene.add(hemi);
+  var sun = new THREE.DirectionalLight(0xffd9a0, 1.0);
+  sun.position.set(20,30,14);
+  scene.add(sun);
+  var fill = new THREE.DirectionalLight(0x6fa0c9, 0.25);
+  fill.position.set(-16,12,-10);
+  scene.add(fill);
+
+  var ground = new THREE.Mesh(
+    new THREE.CircleGeometry(70,48),
+    new THREE.MeshStandardMaterial({color:0x35553f, roughness:1})
+  );
+  ground.rotation.x = -Math.PI/2;
+  scene.add(ground);
+
+  function makeRng(seed){ var s=seed; return function(){ s=(s*9301+49297)%233280; return s/233280; }; }
+
+  function makeFacadeTexture(wallColor, windowColor, cols, seed){
+    var c = document.createElement('canvas'); c.width=256; c.height=96;
+    var ctx = c.getContext('2d');
+    ctx.fillStyle = wallColor; ctx.fillRect(0,0,256,96);
+    var rnd = makeRng(seed||5);
+    var cellW = 256/cols;
+    for(var i=0;i<cols;i++){
+      var lit = rnd() > 0.3;
+      ctx.fillStyle = lit ? windowColor : 'rgba(8,12,14,0.5)';
+      ctx.fillRect(i*cellW+cellW*0.18, 96*0.28, cellW*0.64, 96*0.46);
+    }
+    var tex = new THREE.CanvasTexture(c);
+    tex.needsUpdate = true;
+    return tex;
+  }
+
+  var FLOOR_H = 2.4, GAP_BASE = 0.14, GAP_EXTRA = 1.7;
+
+  // build slabs
+  DATA.buildings.forEach(function(b, bi){
+    b.explode = 0;
+    b.slabs = [];
+    b.baseTotalHeight = b.floors.length * (FLOOR_H + GAP_BASE);
+    b.floors.forEach(function(f, fi){
+      var cols = Math.max(3, f.rooms.length);
+      var facade = makeFacadeTexture(b.wallColor, '#F2C879', cols, bi*10+fi);
+      var sideMat = new THREE.MeshStandardMaterial({map:facade, roughness:0.88});
+      var topMat = new THREE.MeshStandardMaterial({color:b.roofColor, roughness:0.55});
+      var geo = new THREE.BoxGeometry(b.w, FLOOR_H-0.15, b.d);
+      var mesh = new THREE.Mesh(geo, [sideMat,sideMat,topMat,topMat,sideMat,sideMat]);
+      mesh.userData = {buildingId:b.id, floorId:f.id, index:fi};
+      scene.add(mesh);
+
+      var outline = new THREE.LineSegments(
+        new THREE.EdgesGeometry(geo),
+        new THREE.LineBasicMaterial({color:0xE8A33D})
+      );
+      outline.visible = false;
+      mesh.add(outline);
+      mesh.userData.outline = outline;
+
+      b.slabs.push(mesh);
+    });
+  });
+
+  function layoutBuildings(){
+    DATA.buildings.forEach(function(b){
+      var targetExplode = (state.mode!=='campus' && state.buildingId===b.id) ? 1 : 0;
+      b.explode += (targetExplode - b.explode) * 0.09;
+      var cumulative = 0;
+      var gap = GAP_BASE + b.explode*GAP_EXTRA;
+      b.slabs.forEach(function(mesh){
+        var y = cumulative + (FLOOR_H-0.15)/2;
+        mesh.position.set(b.x, y, b.z);
+        cumulative += FLOOR_H + gap;
+        mesh.userData.outline.visible = (state.floorId===mesh.userData.floorId && state.buildingId===mesh.userData.buildingId);
+      });
+    });
+  }
+
+  // trees for context
+  function createTree(x,z,scale){
+    var g = new THREE.Group();
+    var trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.14,0.2,1.2,6), new THREE.MeshStandardMaterial({color:'#4A3826', roughness:1}));
+    trunk.position.y = 0.6*scale;
+    var foliage = new THREE.Mesh(new THREE.ConeGeometry(1.0,2.0,8), new THREE.MeshStandardMaterial({color:'#4C7A5E', roughness:1}));
+    foliage.position.y = 1.6*scale;
+    g.add(trunk, foliage);
+    g.scale.setScalar(scale);
+    g.position.set(x,0,z);
+    scene.add(g);
+  }
+  (function(){
+    var rnd = makeRng(303);
+    var keepOut = [[-14,-2,9],[3,7,7],[16,5,7]];
+    function tooClose(x,z){
+      return keepOut.some(function(k){ var dx=x-k[0], dz=z-k[1]; return Math.sqrt(dx*dx+dz*dz) < k[2]; });
+    }
+    var placed=0, tries=0;
+    while(placed<16 && tries<300){
+      tries++;
+      var ang = rnd()*Math.PI*2, rad = 26+rnd()*18;
+      var x = Math.sin(ang)*rad, z = Math.cos(ang)*rad;
+      if(tooClose(x,z)) continue;
+      createTree(x,z, 0.8+rnd()*0.4);
+      placed++;
+    }
+  })();
+
+  // ============================================================
+  // CAMERA CONTROLS (custom orbit + programmatic transitions)
+  // ============================================================
+  var target = new THREE.Vector3(0,4,2);
+  var theta = 2.5, phi = 1.0, radius = 50;
+  var desired = {theta:theta, phi:phi, radius:radius, target:target.clone()};
+  var minRadius=12, maxRadius=70, minPhi=0.42, maxPhi=1.35;
+  var isDragging=false, lastX=0, lastY=0, lastInteraction=0, transitioning=false;
+
+  function setDesiredForState(){
+    if(state.mode==='campus'){
+      desired.theta = 2.5; desired.phi = 1.0; desired.radius = 50;
+      desired.target.set(0,4,2);
+    } else {
+      var b = getBuilding(state.buildingId);
+      desired.theta = Math.atan2(b.x, b.z) + 0.7;
+      desired.phi = 0.95;
+      desired.radius = Math.max(14, b.floors.length*3.4);
+      desired.target.set(b.x, Math.min(6, b.baseTotalHeight/2), b.z);
+    }
+    transitioning = true;
+  }
+
+  function updateCameraPosition(){
+    camera.position.x = target.x + radius*Math.sin(phi)*Math.sin(theta);
+    camera.position.y = target.y + radius*Math.cos(phi);
+    camera.position.z = target.z + radius*Math.sin(phi)*Math.cos(theta);
+    camera.lookAt(target);
+  }
+
+  function onPointerDown(e){ isDragging=true; transitioning=false; lastX=e.clientX; lastY=e.clientY; lastInteraction=performance.now(); }
+  function onPointerMove(e){
+    if(!isDragging) return;
+    var dx=e.clientX-lastX, dy=e.clientY-lastY;
+    lastX=e.clientX; lastY=e.clientY;
+    theta -= dx*0.0055;
+    phi -= dy*0.0045;
+    phi = Math.max(minPhi, Math.min(maxPhi, phi));
+    lastInteraction = performance.now();
+  }
+  function onPointerUp(){ isDragging=false; }
+  function onWheel(e){
+    e.preventDefault();
+    transitioning=false;
+    radius += e.deltaY*0.03;
+    radius = Math.max(minRadius, Math.min(maxRadius, radius));
+    lastInteraction = performance.now();
+  }
+  canvas.addEventListener('pointerdown', onPointerDown);
+  window.addEventListener('pointermove', onPointerMove);
+  window.addEventListener('pointerup', onPointerUp);
+  canvas.addEventListener('wheel', onWheel, {passive:false});
+
+  // ============================================================
+  // HOTSPOTS
+  // ============================================================
+  var buildingMarkers = DATA.buildings.map(function(b){
+    var el = document.createElement('button');
+    el.className = 'hotspot building-marker';
+    el.type = 'button';
+    el.textContent = b.name;
+    el.addEventListener('click', function(){ navigateTo(b.id, null); });
+    hotspotLayer.appendChild(el);
+    return {el:el, buildingId:b.id, getPos:function(){ return new THREE.Vector3(b.x, b.baseTotalHeight+1.0, b.z); }};
+  });
+
+  var floorMarkers = [];
+  DATA.buildings.forEach(function(b){
+    b.slabs.forEach(function(mesh, idx){
+      var f = b.floors[idx];
+      var el = document.createElement('button');
+      el.className = 'hotspot';
+      el.type = 'button';
+      el.textContent = f.label;
+      el.addEventListener('click', function(){ navigateTo(b.id, f.id); });
+      hotspotLayer.appendChild(el);
+      floorMarkers.push({el:el, buildingId:b.id, floorId:f.id, mesh:mesh, w:b.w});
+    });
+  });
+
+  var tmpVec = new THREE.Vector3();
+  function updateMarkers(){
+    var w = canvas.clientWidth, h = canvas.clientHeight;
+    buildingMarkers.forEach(function(m){
+      if(state.mode!=='campus'){ m.el.style.display='none'; return; }
+      tmpVec.copy(m.getPos()); tmpVec.project(camera);
+      if(tmpVec.z>1 || Math.abs(tmpVec.x)>1.15 || Math.abs(tmpVec.y)>1.15){ m.el.style.display='none'; return; }
+      m.el.style.display='block';
+      m.el.style.left = ((tmpVec.x*0.5+0.5)*w)+'px';
+      m.el.style.top = ((-tmpVec.y*0.5+0.5)*h)+'px';
+    });
+    floorMarkers.forEach(function(m){
+      if(state.mode==='campus' || state.buildingId!==m.buildingId){ m.el.style.display='none'; return; }
+      tmpVec.set(m.mesh.position.x + m.w/2 + 0.8, m.mesh.position.y, m.mesh.position.z);
+      tmpVec.project(camera);
+      if(tmpVec.z>1 || Math.abs(tmpVec.x)>1.2 || Math.abs(tmpVec.y)>1.2){ m.el.style.display='none'; return; }
+      m.el.style.display='block';
+      m.el.style.left = ((tmpVec.x*0.5+0.5)*w)+'px';
+      m.el.style.top = ((-tmpVec.y*0.5+0.5)*h)+'px';
+    });
+  }
+
+  // ============================================================
+  // UI: breadcrumb, floor panel, floor plan, toast
+  // ============================================================
+  var breadcrumbEl = document.getElementById('breadcrumb');
+  var panel = document.getElementById('floor-panel');
+  var panelTag = document.getElementById('panel-tag');
+  var panelTitle = document.getElementById('panel-title');
+  var panelMeta = document.getElementById('panel-meta');
+  var panelRoomList = document.getElementById('panel-room-list');
+  var fpView = document.getElementById('floorplan-view');
+  var fpHeader = document.getElementById('fp-header');
+  var fpGrid = document.getElementById('fp-grid');
+  var btn3d = document.getElementById('btn-view-3d');
+  var btnFp = document.getElementById('btn-view-floorplan');
+  var toastEl = document.getElementById('toast');
+  var toastTimer = null;
+
+  function showToast(msg){
+    toastEl.textContent = msg;
+    toastEl.classList.add('show');
+    if(toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(function(){ toastEl.classList.remove('show'); }, 3200);
+  }
+
+  function updateBreadcrumb(){
+    breadcrumbEl.innerHTML = '';
+    var root = document.createElement('button');
+    root.textContent = 'I²IT Campus';
+    root.addEventListener('click', function(){ navigateTo(null); });
+    breadcrumbEl.appendChild(root);
+    if(state.buildingId){
+      var b = getBuilding(state.buildingId);
+      breadcrumbEl.appendChild(sep());
+      var bBtn = document.createElement('button');
+      bBtn.textContent = b.name;
+      if(state.floorId){
+        bBtn.addEventListener('click', function(){ navigateTo(b.id, null); });
+      } else {
+        bBtn.className = 'current';
+      }
+      breadcrumbEl.appendChild(bBtn);
+    }
+    if(state.floorId){
+      var f = getFloor(getBuilding(state.buildingId), state.floorId);
+      breadcrumbEl.appendChild(sep());
+      var fSpan = document.createElement('span');
+      fSpan.className = 'current';
+      fSpan.textContent = f.label;
+      breadcrumbEl.appendChild(fSpan);
+    }
+    function sep(){ var s=document.createElement('span'); s.className='sep'; s.textContent='/'; return s; }
+  }
+
+  function updateFloorPanel(){
+    if(!state.floorId){ panel.classList.remove('open'); return; }
+    var b = getBuilding(state.buildingId);
+    var f = getFloor(b, state.floorId);
+    panelTag.textContent = b.name;
+    panelTitle.textContent = f.label;
+    panelMeta.textContent = f.rooms.length + ' rooms · ' + b.id + '-' + f.id;
+    panelRoomList.innerHTML = '';
+    f.rooms.forEach(function(r){
+      var row = document.createElement('button');
+      row.className = 'room-row' + (state.selectedRoomId===r.id ? ' active' : '');
+      row.innerHTML = '<span>'+r.name+'</span><span class="rid">'+fullId(b,f,r)+'</span>';
+      row.addEventListener('click', function(){ selectRoom(r.id); });
+      panelRoomList.appendChild(row);
+    });
+    panel.classList.add('open');
+  }
+
+  function renderFloorPlan(){
+    if(!state.floorId){ fpHeader.textContent = 'Select a floor to see its room layout.'; fpGrid.innerHTML=''; return; }
+    var b = getBuilding(state.buildingId);
+    var f = getFloor(b, state.floorId);
+    fpHeader.textContent = b.name + ' — ' + f.label + ' (' + b.id + '-' + f.id + ')';
+    fpGrid.innerHTML = '';
+    f.rooms.forEach(function(r){
+      var el = document.createElement('button');
+      el.className = 'fp-room' + (state.selectedRoomId===r.id ? ' active' : '');
+      el.innerHTML = r.name + '<span class="fp-id">'+fullId(b,f,r)+'</span>';
+      el.addEventListener('click', function(){ selectRoom(r.id); });
+      fpGrid.appendChild(el);
+    });
+  }
+
+  function setViewMode(mode){
+    if(mode==='floorplan' && !state.floorId) mode = '3d';
+    state.viewMode = mode;
+    btn3d.classList.toggle('active', mode==='3d');
+    btnFp.classList.toggle('active', mode==='floorplan');
+    fpView.classList.toggle('active', mode==='floorplan');
+    canvas.style.display = mode==='3d' ? 'block' : 'none';
+    hotspotLayer.style.display = mode==='3d' ? 'block' : 'none';
+    if(mode==='floorplan') renderFloorPlan();
+  }
+  btn3d.addEventListener('click', function(){ setViewMode('3d'); });
+  btnFp.addEventListener('click', function(){ setViewMode('floorplan'); });
+  btnFp.addEventListener('mouseenter', function(){ if(!state.floorId) btnFp.title='Select a floor first'; });
+
+  function navigateTo(buildingId, floorId, roomId, silent){
+    state.buildingId = buildingId || null;
+    state.floorId = (buildingId && floorId) || null;
+    state.selectedRoomId = roomId || null;
+    state.mode = state.buildingId ? (state.floorId ? 'floor' : 'building') : 'campus';
+    updateBreadcrumb();
+    updateFloorPanel();
+    setDesiredForState();
+    btnFp.disabled = !state.floorId;
+    if(!state.floorId && state.viewMode==='floorplan') setViewMode('3d');
+    if(state.floorId && roomId && !silent) setViewMode('floorplan');
+    else if(state.viewMode==='floorplan') renderFloorPlan();
+  }
+
+  function selectRoom(roomId){
+    state.selectedRoomId = roomId;
+    updateFloorPanel();
+    if(state.viewMode==='floorplan') renderFloorPlan();
+  }
+
+  document.getElementById('panel-close').addEventListener('click', function(){ navigateTo(state.buildingId, null); });
+
+  // ---------------- search ----------------
+  document.getElementById('search-form').addEventListener('submit', function(e){
+    e.preventDefault();
+    var q = document.getElementById('search-input').value;
+    var found = findMatch(q);
+    if(!found){ showToast('No match for "'+q+'". Try a room like "TPO Office" or a building like "Library".'); return; }
+    if(found.type==='room'){
+      navigateTo(found.buildingId, found.floorId, found.roomId);
+      showToast('Found "'+found.roomName+'" — '+found.buildingName+', '+found.floorLabel+' ('+found.fullId+')');
+    } else {
+      navigateTo(found.buildingId, null);
+      showToast('Showing floors for '+found.buildingName+'.');
+    }
+  });
+
+  // ---------------- AI query (simulated NLU) ----------------
+  var aiPanel = document.getElementById('ai-panel');
+  var aiMessages = document.getElementById('ai-messages');
+  document.getElementById('ai-toggle').addEventListener('click', function(){
+    aiPanel.classList.toggle('open');
+    if(aiMessages.children.length===0){
+      addAiMessage('bot', 'Ask me things like "Where is the TPO office?" or "How many floors does the Library have?"');
+    }
+  });
+  document.getElementById('ai-close').addEventListener('click', function(){ aiPanel.classList.remove('open'); });
+
+  function addAiMessage(who, text){
+    var div = document.createElement('div');
+    div.className = 'ai-msg '+who;
+    div.innerHTML = '<span class="who">'+(who==='user'?'You':'Assistant')+'</span>'+text;
+    aiMessages.appendChild(div);
+    aiMessages.scrollTop = aiMessages.scrollHeight;
+  }
+
+  function answerQuery(text){
+    var lower = text.toLowerCase().trim();
+    var m = lower.match(/where(?:'s| is) (?:the )?(.+?)\??$/) || lower.match(/location of (?:the )?(.+?)\??$/);
+    if(m){
+      var found = findMatch(m[1]);
+      if(found && found.type==='room'){
+        navigateTo(found.buildingId, found.floorId, found.roomId);
+        return found.roomName+' is on the '+found.floorLabel+' of '+found.buildingName+' (ID: '+found.fullId+').';
+      }
+      if(found && found.type==='building'){
+        navigateTo(found.buildingId, null);
+        return found.buildingName+' has '+found.floorCount+' floor'+(found.floorCount>1?'s':'')+'. I\'ve opened it in the viewer — pick a floor to see its rooms.';
+      }
+      return 'I couldn\'t find anything matching "'+m[1]+'". Try a room name like "TPO Office", or a building like "Library".';
+    }
+    m = lower.match(/how many floors (?:does |do |in )?(?:the )?(.+?)(?: have)?\??$/);
+    if(m){
+      var b = findBuildingByName(m[1]);
+      if(b) return b.name+' has '+b.floors.length+' floor'+(b.floors.length>1?'s':'')+'.';
+      return 'I don\'t recognise "'+m[1]+'" as a building. Try Academic Building, PPCRC, or Library.';
+    }
+    m = lower.match(/how many rooms (?:are there )?(?:in|on) (?:the )?(.+)/);
+    if(m){
+      var b2 = findBuildingByName(m[1]);
+      if(b2){
+        var total = b2.floors.reduce(function(sum,f){ return sum+f.rooms.length; }, 0);
+        return b2.name+' has '+total+' rooms across '+b2.floors.length+' floors.';
+      }
+    }
+    var fallback = findMatch(lower);
+    if(fallback && fallback.type==='room'){
+      navigateTo(fallback.buildingId, fallback.floorId, fallback.roomId);
+      return fallback.roomName+' is on the '+fallback.floorLabel+' of '+fallback.buildingName+' (ID: '+fallback.fullId+').';
+    }
+    if(fallback && fallback.type==='building'){
+      navigateTo(fallback.buildingId, null);
+      return fallback.buildingName+' has '+fallback.floorCount+' floor'+(fallback.floorCount>1?'s':'')+'.';
+    }
+    return 'I can answer things like "Where is the TPO office?" or "How many floors does the Library have?"';
+  }
+
+  document.getElementById('ai-form').addEventListener('submit', function(e){
+    e.preventDefault();
+    var input = document.getElementById('ai-input');
+    var q = input.value.trim();
+    if(!q) return;
+    addAiMessage('user', q);
+    input.value = '';
+    var answer = answerQuery(q);
+    setTimeout(function(){ addAiMessage('bot', answer); }, 220);
+  });
+
+  // ============================================================
+  // RESIZE + ANIMATION LOOP
+  // ============================================================
+  function resize(){
+    var w = viewerWrap.clientWidth, h = viewerWrap.clientHeight;
+    renderer.setSize(w,h,false);
+    camera.aspect = w/h;
+    camera.updateProjectionMatrix();
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  var firstFrame = true;
+  function animate(now){
+    requestAnimationFrame(animate);
+
+    if(transitioning){
+      theta += (desired.theta-theta)*0.07;
+      phi += (desired.phi-phi)*0.07;
+      radius += (desired.radius-radius)*0.07;
+      target.lerp(desired.target, 0.07);
+      if(Math.abs(desired.theta-theta)<0.003 && Math.abs(desired.radius-radius)<0.05) transitioning=false;
+    } else if(!isDragging && state.mode==='campus' && now-lastInteraction>2600 && !reduceMotion){
+      theta += 0.00035;
+    }
+
+    layoutBuildings();
+    updateCameraPosition();
+    renderer.render(scene, camera);
+    if(state.viewMode==='3d') updateMarkers();
+
+    if(firstFrame){ firstFrame=false; canvas.classList.add('ready'); }
+  }
+  requestAnimationFrame(animate);
+
+  // ---------------- init ----------------
+  navigateTo(null, null, null, true);
+})();
+</script>
+</body>
+</html>
